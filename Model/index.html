@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Road Damage Detector</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- SPLASH SCREEN -->
+    <section id="splash-screen" class="page-section active flex-center">
+        <div class="splash-content text-center">
+            <div class="logo-container">
+                <i class="fa-solid fa-road-circle-exclamation feature-icon text-primary glow"></i>
+            </div>
+            <h1 class="gradient-text">RoadSentinel AI</h1>
+            <p class="text-secondary subtitle">Initializing Systems...</p>
+            <div class="loader"></div>
+            <p id="splash-status" class="text-sm">Requesting permissions...</p>
+        </div>
+    </section>
+
+    <!-- APP LAYOUT (Hidden initially) -->
+    <div id="app-container" class="hidden">
+
+        <!-- SIDEBAR / NAVBAR -->
+        <nav class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-road-circle-exclamation text-primary"></i>
+                <span class="brand">Sentinel AI</span>
+            </div>
+
+            <ul class="nav-links">
+                <li><a href="#" data-target="home" class="nav-btn active"><i class="fa-solid fa-house"></i>
+                        <span>Dashboard</span></a></li>
+                <li><a href="#" data-target="camera" class="nav-btn"><i class="fa-solid fa-camera"></i> <span>Live
+                            Detection</span></a></li>
+                <li><a href="#" data-target="history" class="nav-btn"><i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>History</span></a></li>
+                <li><a href="#" data-target="settings" class="nav-btn"><i class="fa-solid fa-gear"></i>
+                        <span>Settings</span></a></li>
+            </ul>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot disconnected" id="ble-dot"></span>
+                    <span id="ble-text">ESP32 Disconnected</span>
+                </div>
+                <button id="theme-toggle" class="icon-btn mt-2" title="Toggle Theme">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </nav>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+
+            <!-- HOME DASHBOARD -->
+            <section id="home" class="page-section scrollable">
+                <header class="page-header">
+                    <div>
+                        <h2>Dashboard</h2>
+                        <p class="text-secondary">Overview of road conditions and system status.</p>
+                    </div>
+                </header>
+
+                <div class="dashboard-grid">
+                    <!-- Stats Cards -->
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon bg-error-dim"><i class="fa-solid fa-triangle-exclamation text-error"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>Total Damages</h3>
+                            <h2 id="stat-total">0</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon bg-warning-dim"><i class="fa-solid fa-crack text-warning"></i></div>
+                        <div class="stat-info">
+                            <h3>Recent Potholes</h3>
+                            <h2 id="stat-potholes">0</h2>
+                        </div>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <div class="stat-icon bg-primary-dim"><i class="fa-solid fa-satellite-dish text-primary"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3>System Status</h3>
+                            <h2 id="stat-status" class="text-success text-sm title-case">Online</h2>
+                        </div>
+                    </div>
+
+                    <!-- Quick Camera Preview -->
+                    <div class="card glass-panel col-span-2">
+                        <div class="card-header">
+                            <h3>Live Preview</h3>
+                            <button class="btn btn-primary btn-sm" id="btn-start-detection-home">
+                                <i class="fa-solid fa-play"></i> Start Detection
+                            </button>
+                        </div>
+                        <div class="preview-container bg-dark-dim">
+                            <i class="fa-solid fa-video-slash text-secondary icon-xl"></i>
+                            <p class="mt-2 text-secondary">Camera feed inactive</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="card glass-panel">
+                        <div class="card-header">
+                            <h3>Recent Alerts</h3>
+                        </div>
+                        <ul class="alert-list" id="home-recent-alerts">
+                            <li class="empty-state text-secondary text-sm text-center py-4">No recent detections</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CAMERA DETECTION PAGE -->
+            <section id="camera" class="page-section">
+                <div class="camera-wrapper">
+                    <!-- Header Overlay -->
+                    <div class="camera-header glass-floating">
+                        <div class="camera-title">
+                            <i class="fa-solid fa-circle-dot text-error pulse-anim"></i>
+                            <span>Live Detection Active</span>
+                        </div>
+                        <div class="camera-metrics">
+                            <span class="badge" id="cam-fps">30 FPS</span>
+                            <span class="badge bg-primary-dim text-primary" id="cam-model">YOLOv8 TFLite</span>
+                        </div>
+                    </div>
+
+                    <!-- Video & Canvas -->
+                    <div class="feed-container">
+                        <video id="live-video" autoplay playsinline muted class="hidden"></video>
+                        <img id="python-video" src="" class="hidden"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;"
+                            crossorigin="anonymous">
+                        <canvas id="detection-overlay"></canvas>
+
+                        <!-- Initial state / Error state -->
+                        <div id="camera-overlay-message" class="feed-message flex-center flex-col">
+                            <i class="fa-solid fa-video mb-2 icon-xl"></i>
+                            <p>Click "Start Detection" to begin</p>
+                            <button class="btn btn-primary mt-4" id="btn-start-detection">
+                                <i class="fa-solid fa-power-off"></i> Start Engine
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Controls Overlay -->
+                    <div class="camera-controls glass-floating bottom">
+                        <div class="control-group">
+                            <button class="control-btn" id="btn-stop-detection" title="Stop Detection" disabled>
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
+                            <button class="control-btn" id="btn-capture-manual" title="Manual Capture" disabled>
+                                <i class="fa-solid fa-camera"></i>
+                            </button>
+                        </div>
+                        <div class="ble-mock-feed text-xs font-mono" id="ble-mock-console">
+                            > ESP32 waiting for connection...
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- HISTORY PAGE -->
+            <section id="history" class="page-section scrollable">
+                <header class="page-header flex-between">
+                    <div>
+                        <h2>Detection log</h2>
+                        <p class="text-secondary">Review localized road damage data.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-outline btn-sm" id="btn-export-csv">
+                            <i class="fa-solid fa-download"></i> Export CSV
+                        </button>
+                        <button class="btn btn-error btn-sm" id="btn-clear-history">
+                            <i class="fa-solid fa-trash"></i> Clear All
+                        </button>
+                    </div>
+                </header>
+
+                <!-- History Togglers -->
+                <div class="view-toggles mb-4">
+                    <button class="toggle-btn active" data-view="table">List View</button>
+                    <button class="toggle-btn" data-view="map">Map View</button>
+                </div>
+
+                <div class="history-content card glass-panel">
+                    <!-- Table View -->
+                    <div id="history-table-view" class="view-pane active">
+                        <div class="table-responsive">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Type</th>
+                                        <th>Confidence</th>
+                                        <th>Location</th>
+                                        <th>Severity</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-tbody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-secondary py-4">No detections recorded
+                                            yet.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Map View -->
+                    <div id="history-map-view" class="view-pane hidden">
+                        <div id="map-container" class="map-wrapper"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SETTINGS PAGE -->
+            <section id="settings" class="page-section scrollable">
+                <header class="page-header">
+                    <div>
+                        <h2>Settings</h2>
+                        <p class="text-secondary">Configure AI model and system preferences.</p>
+                    </div>
+                </header>
+
+                <div class="settings-grid">
+                    <div class="card glass-panel">
+                        <h3><i class="fa-solid fa-brain text-primary"></i> AI Configuration</h3>
+
+                        <div class="form-group mt-4">
+                            <label class="flex-between">
+                                <span>Confidence Threshold</span>
+                                <span id="threshold-val" class="text-primary font-bold">0.60</span>
+                            </label>
+                            <input type="range" id="setting-threshold" min="0.1" max="1.0" step="0.05" value="0.60"
+                                class="slider mt-2">
+                            <p class="text-xs text-secondary mt-1">Lower values report more damages but may incur false
+                                positives.</p>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <label class="flex-between">
+                                <span>Simulate Bluetooth Data</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="setting-sim-ble" checked>
+                                    <span class="slider-toggle round"></span>
+                                </label>
+                            </label>
+                            <p class="text-xs text-secondary">Generates mock ESP32 GPS data automatically.</p>
+                        </div>
+                    </div>
+
+                    <div class="card glass-panel">
+                        <h3><i class="fa-solid fa-bell text-warning"></i> Notifications</h3>
+
+                        <div class="form-group mt-4">
+                            <label class="flex-between">
+                                <span>Enable Alerts</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="setting-alerts" checked>
+                                    <span class="slider-toggle round"></span>
+                                </label>
+                            </label>
+                        </div>
+
+                        <div class="form-group mt-4" id="email-group">
+                            <label>Alert Email Address (Simulated)</label>
+                            <div class="input-with-icon mt-2">
+                                <i class="fa-solid fa-envelope"></i>
+                                <input type="email" id="setting-email" placeholder="admin@roaddept.gov"
+                                    class="input-field">
+                            </div>
+                        </div>
+
+                        <div class="form-group mt-4">
+                            <label>Alert Severity Minimum</label>
+                            <select id="setting-alert-level" class="input-field mt-2">
+                                <option value="High">High Only</option>
+                                <option value="Medium">Medium & High</option>
+                                <option value="Low">All Detections</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card glass-panel col-span-2">
+                        <button class="btn btn-primary" id="btn-save-settings">Save Configurations</button>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- DETAIL MODAL -->
+    <div id="detail-modal" class="modal flex-center hidden">
+        <div class="modal-content glass-panel card">
+            <div class="modal-header flex-between mb-4">
+                <h3 id="modal-title">Detection #ID</h3>
+                <button class="icon-btn" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-image-container mb-4 pattern-bg">
+                    <img id="modal-img" src="" alt="Captured Damage" class="hidden">
+                    <i class="fa-solid fa-image text-secondary icon-xl" id="modal-img-placeholder"></i>
+                </div>
+
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="text-xs text-secondary">Class</span>
+                        <h4 id="det-class" class="title-case text-primary">-</h4>
+                    </div>
+                    <div class="detail-item">
+                        <span class="text-xs text-secondary">Confidence</span>
+                        <h4 id="det-conf">-</h4>
+                    </div>
+                    <div class="detail-item">
+                        <span class="text-xs text-secondary">Estimated Depth</span>
+                        <h4 id="det-depth">-</h4>
+                    </div>
+                    <div class="detail-item">
+                        <span class="text-xs text-secondary">Severity</span>
+                        <h4 id="det-sev">-</h4>
+                    </div>
+                    <div class="detail-item col-span-2">
+                        <span class="text-xs text-secondary">Location (Lat, Lng)</span>
+                        <h4 id="det-loc" class="font-mono text-sm">-</h4>
+                    </div>
+                    <div class="detail-item col-span-2">
+                        <span class="text-xs text-secondary">Timestamp</span>
+                        <h4 id="det-time" class="text-sm">-</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer mt-4 flex-end gap-2">
+                <button class="btn btn-outline btn-sm" id="btn-dismiss-modal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js" type="module"></script>
+</body>
+
+</html>
