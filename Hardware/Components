@@ -1,0 +1,34 @@
+1. Mobile Camera – Captures road images
+2. ESP32 – Main controller and communication unit
+3. Ultrasonic Sensor – Measures pothole depth
+4. GPS Module – Provides exact location
+5. YOLO AI Model – Detects potholes and cracks
+6. Alert System – Sends notifications to users and authorities
+
+
+#Flow
+
+Mobile Camera
+      ↓
+ESP32
+      ↓
+YOLO AI Model
+      ↓
+Pothole / Crack Detection
+      ↓
+GPS + Ultrasonic Sensor
+      ↓
+Severity Classification
+      ↓
+Alert to User / Authorities
+
+
+
+#If you are running YOLO on a laptop/cloud, then the architecture should be:Mobile Camera → ESP32 → Laptop/Server (YOLO AI Model)
+                     ↘
+          GPS Module + Ultrasonic Sensor
+                         ↓
+              Severity Analysis
+                         ↓
+                  Alert System
+
